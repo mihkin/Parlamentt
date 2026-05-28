@@ -1,0 +1,8 @@
+E:\git\ParlamB\Temp\CodexBuild\Assembly-CSharp-Editor\Assembly-CSharp-Editor.dll
+E:\git\ParlamB\Temp\CodexBuild\Assembly-CSharp-Editor\Assembly-CSharp-Editor.pdb
+E:\git\ParlamB\Temp\CodexBuild\Assembly-CSharp-Editor\Assembly-CSharp.pdb
+E:\git\ParlamB\obj-codex\Assembly-CSharp-Editor\Debug\Assembly-CSharp-Editor.csproj.AssemblyReference.cache
+E:\git\ParlamB\obj-codex\Assembly-CSharp-Editor\Debug\Assembly-CSharp-Editor.csproj.CoreCompileInputs.cache
+E:\git\ParlamB\obj-codex\Assembly-CSharp-Editor\Debug\Assembly.1F1299F3.Up2Date
+E:\git\ParlamB\obj-codex\Assembly-CSharp-Editor\Debug\Assembly-CSharp-Editor.dll
+E:\git\ParlamB\obj-codex\Assembly-CSharp-Editor\Debug\Assembly-CSharp-Editor.pdb

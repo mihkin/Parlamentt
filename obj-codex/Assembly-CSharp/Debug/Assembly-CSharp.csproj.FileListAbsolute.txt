@@ -1,0 +1,6 @@
+E:\git\ParlamB\Temp\CodexBuild\Assembly-CSharp\Assembly-CSharp.dll
+E:\git\ParlamB\Temp\CodexBuild\Assembly-CSharp\Assembly-CSharp.pdb
+E:\git\ParlamB\obj-codex\Assembly-CSharp\Debug\Assembly-CSharp.csproj.AssemblyReference.cache
+E:\git\ParlamB\obj-codex\Assembly-CSharp\Debug\Assembly-CSharp.csproj.CoreCompileInputs.cache
+E:\git\ParlamB\obj-codex\Assembly-CSharp\Debug\Assembly-CSharp.dll
+E:\git\ParlamB\obj-codex\Assembly-CSharp\Debug\Assembly-CSharp.pdb

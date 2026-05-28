@@ -1,0 +1,353 @@
+Руководство по PostgreSQL для игры Parliament
+
+1. Общая идея
+
+PostgreSQL лучше использовать как постоянное хранилище для:
+- профилей игроков
+- списка полученных карт
+- выбранной колоды
+- статистики игрока
+- истории матчей
+- истории покупок в магазине
+
+Нормальная логика связей такая:
+- у одного игрока одна основная запись профиля
+- у одного игрока одна запись статистики
+- один игрок может владеть многими картами
+- одна карта может принадлежать многим игрокам
+- у одного матча много участников
+- один игрок может участвовать во многих матчах
+
+2. Рекомендуемые таблицы
+
+Таблица: players
+Назначение:
+- основная информация о профиле игрока
+
+Поля:
+- id UUID PRIMARY KEY
+- nickname VARCHAR(64) NOT NULL
+- rank_name VARCHAR(32) NOT NULL DEFAULT 'Bronze'
+- avatar VARCHAR(64) NOT NULL DEFAULT 'default'
+- level INT NOT NULL DEFAULT 1
+- experience INT NOT NULL DEFAULT 0
+- coins INT NOT NULL DEFAULT 500
+- created_at TIMESTAMP NOT NULL DEFAULT NOW()
+- updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+
+Ограничения:
+- UNIQUE(nickname)
+- CHECK(level >= 1)
+- CHECK(experience >= 0)
+- CHECK(coins >= 0)
+
+Таблица: player_statistics
+Назначение:
+- агрегированная статистика игрока
+
+Поля:
+- player_id UUID PRIMARY KEY
+- total_matches INT NOT NULL DEFAULT 0
+- wins INT NOT NULL DEFAULT 0
+- losses INT NOT NULL DEFAULT 0
+- online_matches INT NOT NULL DEFAULT 0
+- offline_matches INT NOT NULL DEFAULT 0
+- cards_played INT NOT NULL DEFAULT 0
+- turns_played INT NOT NULL DEFAULT 0
+
+Связи:
+- player_id REFERENCES players(id) ON DELETE CASCADE
+
+Ограничения:
+- CHECK(total_matches >= 0)
+- CHECK(wins >= 0)
+- CHECK(losses >= 0)
+- CHECK(online_matches >= 0)
+- CHECK(offline_matches >= 0)
+- CHECK(cards_played >= 0)
+- CHECK(turns_played >= 0)
+
+Таблица: cards
+Назначение:
+- справочник всех карт в игре
+
+Поля:
+- id INT PRIMARY KEY
+- code VARCHAR(128) UNIQUE
+- name VARCHAR(128) NOT NULL
+- rarity VARCHAR(32) NOT NULL
+- card_type VARCHAR(32) NOT NULL
+- cost INT NOT NULL DEFAULT 0
+- is_active BOOLEAN NOT NULL DEFAULT TRUE
+
+Ограничения:
+- CHECK(cost >= 0)
+
+Таблица: player_owned_cards
+Назначение:
+- связь между игроком и картами, которыми он владеет
+
+Поля:
+- player_id UUID NOT NULL
+- card_id INT NOT NULL
+- obtained_at TIMESTAMP NOT NULL DEFAULT NOW()
+- source VARCHAR(32) NULL
+
+Первичный ключ:
+- PRIMARY KEY(player_id, card_id)
+
+Связи:
+- player_id REFERENCES players(id) ON DELETE CASCADE
+- card_id REFERENCES cards(id) ON DELETE RESTRICT
+
+Таблица: player_selected_deck
+Назначение:
+- текущая выбранная колода игрока с сохранением порядка карт
+
+Поля:
+- player_id UUID NOT NULL
+- slot_index INT NOT NULL
+- card_id INT NOT NULL
+
+Первичный ключ:
+- PRIMARY KEY(player_id, slot_index)
+
+Дополнительно:
+- UNIQUE(player_id, card_id)
+
+Связи:
+- player_id REFERENCES players(id) ON DELETE CASCADE
+- card_id REFERENCES cards(id) ON DELETE RESTRICT
+
+Ограничения:
+- CHECK(slot_index >= 0)
+
+Таблица: matches
+Назначение:
+- общая информация о матче
+
+Поля:
+- id UUID PRIMARY KEY
+- match_type VARCHAR(16) NOT NULL
+- lobby_code VARCHAR(16) NULL
+- started_at TIMESTAMP NOT NULL DEFAULT NOW()
+- finished_at TIMESTAMP NULL
+- winner_player_id UUID NULL
+- result_text VARCHAR(255) NULL
+
+Связи:
+- winner_player_id REFERENCES players(id) ON DELETE SET NULL
+
+Рекомендуемые значения для match_type:
+- 'online'
+- 'offline'
+
+Таблица: match_participants
+Назначение:
+- участники матча и их итоговые показатели
+
+Поля:
+- match_id UUID NOT NULL
+- player_id UUID NOT NULL
+- seat_index INT NOT NULL
+- is_winner BOOLEAN NOT NULL DEFAULT FALSE
+- final_influence INT NOT NULL DEFAULT 0
+- cards_played INT NOT NULL DEFAULT 0
+- turns_played INT NOT NULL DEFAULT 0
+
+Первичный ключ:
+- PRIMARY KEY(match_id, player_id)
+
+Дополнительно:
+- UNIQUE(match_id, seat_index)
+
+Связи:
+- match_id REFERENCES matches(id) ON DELETE CASCADE
+- player_id REFERENCES players(id) ON DELETE CASCADE
+
+Ограничения:
+- CHECK(seat_index >= 0)
+- CHECK(final_influence >= 0)
+- CHECK(cards_played >= 0)
+- CHECK(turns_played >= 0)
+
+Таблица: shop_items
+Назначение:
+- справочник предметов магазина
+
+Поля:
+- id UUID PRIMARY KEY
+- code VARCHAR(64) NOT NULL UNIQUE
+- title VARCHAR(128) NOT NULL
+- price_coins INT NOT NULL
+- item_type VARCHAR(32) NOT NULL
+- is_active BOOLEAN NOT NULL DEFAULT TRUE
+
+Ограничения:
+- CHECK(price_coins >= 0)
+
+Таблица: purchases
+Назначение:
+- история покупок игрока
+
+Поля:
+- id UUID PRIMARY KEY
+- player_id UUID NOT NULL
+- shop_item_id UUID NOT NULL
+- price_paid INT NOT NULL
+- purchased_at TIMESTAMP NOT NULL DEFAULT NOW()
+
+Связи:
+- player_id REFERENCES players(id) ON DELETE CASCADE
+- shop_item_id REFERENCES shop_items(id) ON DELETE RESTRICT
+
+Ограничения:
+- CHECK(price_paid >= 0)
+
+3. Основные связи между таблицами
+
+Связь:
+- players 1 -> 1 player_statistics
+
+Связь:
+- players 1 -> many player_owned_cards
+- cards 1 -> many player_owned_cards
+
+Связь:
+- players 1 -> many player_selected_deck
+- cards 1 -> many player_selected_deck
+
+Связь:
+- matches 1 -> many match_participants
+- players 1 -> many match_participants
+
+Связь:
+- players 1 -> many purchases
+- shop_items 1 -> many purchases
+
+4. Минимальная схема, если нужна только база под текущую игру
+
+Если хочешь начать с самого необходимого, достаточно таких таблиц:
+- players
+- player_statistics
+- cards
+- player_owned_cards
+- player_selected_deck
+
+Этого хватит для:
+- профиля игрока
+- хранения валюты
+- списка открытых карт
+- выбранной колоды
+- статистики
+
+5. Полезные индексы
+
+Рекомендуемые индексы:
+- CREATE UNIQUE INDEX ux_players_nickname ON players(nickname);
+- CREATE INDEX ix_player_owned_cards_player_id ON player_owned_cards(player_id);
+- CREATE INDEX ix_player_selected_deck_player_id ON player_selected_deck(player_id);
+- CREATE INDEX ix_match_participants_player_id ON match_participants(player_id);
+- CREATE INDEX ix_purchases_player_id ON purchases(player_id);
+
+6. Важные бизнес-правила
+
+Рекомендуется проверять на уровне приложения:
+- nickname должен быть уникальным
+- в player_selected_deck можно класть только карты из player_owned_cards
+- размер выбранной колоды должен соответствовать правилам игры
+- при удалении игрока должны удаляться его статистика, колода, полученные карты и история покупок
+- таблица cards должна заполняться на основе вашей игровой базы карт
+
+7. Пример SQL DDL
+
+CREATE TABLE players (
+    id UUID PRIMARY KEY,
+    nickname VARCHAR(64) NOT NULL UNIQUE,
+    rank_name VARCHAR(32) NOT NULL DEFAULT 'Bronze',
+    avatar VARCHAR(64) NOT NULL DEFAULT 'default',
+    level INT NOT NULL DEFAULT 1 CHECK (level >= 1),
+    experience INT NOT NULL DEFAULT 0 CHECK (experience >= 0),
+    coins INT NOT NULL DEFAULT 500 CHECK (coins >= 0),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE player_statistics (
+    player_id UUID PRIMARY KEY REFERENCES players(id) ON DELETE CASCADE,
+    total_matches INT NOT NULL DEFAULT 0 CHECK (total_matches >= 0),
+    wins INT NOT NULL DEFAULT 0 CHECK (wins >= 0),
+    losses INT NOT NULL DEFAULT 0 CHECK (losses >= 0),
+    online_matches INT NOT NULL DEFAULT 0 CHECK (online_matches >= 0),
+    offline_matches INT NOT NULL DEFAULT 0 CHECK (offline_matches >= 0),
+    cards_played INT NOT NULL DEFAULT 0 CHECK (cards_played >= 0),
+    turns_played INT NOT NULL DEFAULT 0 CHECK (turns_played >= 0)
+);
+
+CREATE TABLE cards (
+    id INT PRIMARY KEY,
+    code VARCHAR(128) UNIQUE,
+    name VARCHAR(128) NOT NULL,
+    rarity VARCHAR(32) NOT NULL,
+    card_type VARCHAR(32) NOT NULL,
+    cost INT NOT NULL DEFAULT 0 CHECK (cost >= 0),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE player_owned_cards (
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    card_id INT NOT NULL REFERENCES cards(id) ON DELETE RESTRICT,
+    obtained_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    source VARCHAR(32) NULL,
+    PRIMARY KEY(player_id, card_id)
+);
+
+CREATE TABLE player_selected_deck (
+    player_id UUID NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    slot_index INT NOT NULL CHECK (slot_index >= 0),
+    card_id INT NOT NULL REFERENCES cards(id) ON DELETE RESTRICT,
+    PRIMARY KEY(player_id, slot_index),
+    UNIQUE(player_id, card_id)
+);
+
+8. Что хранить в какой таблице
+
+В players:
+- nickname
+- rank_name
+- avatar
+- level
+- experience
+- coins
+
+В player_statistics:
+- победы и поражения
+- общее число матчей
+- число сыгранных карт
+- число ходов
+
+В player_owned_cards:
+- список карт, которыми владеет игрок
+
+В player_selected_deck:
+- текущая колода игрока в нужном порядке
+
+В matches:
+- общая информация о матче
+
+В match_participants:
+- какие игроки участвовали и с каким итогом завершили матч
+
+9. Практический следующий шаг
+
+Самый безопасный путь внедрения:
+1. создать таблицы в PostgreSQL
+2. пока оставить Unity-клиент на локальном JSON
+3. потом добавить backend API
+4. через API сохранять и читать:
+- профиль игрока
+- список карт игрока
+- выбранную колоду
+- статистику
+
+Так ты сможешь перейти на PostgreSQL постепенно и без поломки уже работающей игры.

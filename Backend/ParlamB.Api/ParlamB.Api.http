@@ -1,0 +1,100 @@
+@ParlamBApiHost = http://localhost:5268
+@AuthToken = INSERT_TOKEN_HERE
+
+GET {{ParlamBApiHost}}/api/health
+Accept: application/json
+
+###
+
+POST {{ParlamBApiHost}}/api/auth/register
+Content-Type: application/json
+
+{
+  "login": "apitestuser",
+  "password": "Test12345!",
+  "nickname": "Api Test User"
+}
+
+###
+
+POST {{ParlamBApiHost}}/api/auth/login
+Content-Type: application/json
+
+{
+  "login": "apitestuser",
+  "password": "Test12345!"
+}
+
+###
+
+GET {{ParlamBApiHost}}/api/profile/me
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+PUT {{ParlamBApiHost}}/api/profile/me
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "nickname": "apitestuser",
+  "level": 2,
+  "experience": 150,
+  "coins": 640,
+  "ownedCards": [1, 2, 3, 4, 5, 6, 7, 8],
+  "selectedDeck": [1, 2, 3, 4],
+  "statistics": {
+    "totalMatches": 3,
+    "wins": 2,
+    "losses": 1,
+    "onlineMatches": 3,
+    "offlineMatches": 0,
+    "cardsPlayed": 10,
+    "turnsPlayed": 6
+  },
+  "rank": "Bronze",
+  "avatar": "default"
+}
+
+###
+
+PUT {{ParlamBApiHost}}/api/profile/me/deck
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "selectedDeck": [1, 2, 3]
+}
+
+###
+
+POST {{ParlamBApiHost}}/api/profile/me/coins
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "amount": 25
+}
+
+###
+
+POST {{ParlamBApiHost}}/api/profile/me/unlock-card
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "cardId": 5
+}
+
+###
+
+POST {{ParlamBApiHost}}/api/profile/me/match-result
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "won": true,
+  "online": true,
+  "coinsReward": 50
+}

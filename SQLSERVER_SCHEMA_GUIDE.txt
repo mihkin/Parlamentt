@@ -1,0 +1,443 @@
+Руководство по SQL Server для ParlamB
+
+1. Что лучше хранить в базе
+
+SQL Server в этой игре нужен как постоянное хранилище для:
+- профиля игрока
+- монет
+- уровня и опыта
+- открытых карт
+- выбранной колоды
+- статистики матчей
+- истории покупок
+- истории матчей, если захочешь аналитику
+
+Минимальный набор таблиц для текущей логики проекта:
+- `players`
+- `auth_users`
+- `player_statistics`
+- `cards`
+- `player_owned_cards`
+- `player_selected_deck`
+
+Если хочешь хранить ещё историю матчей и наград:
+- `matches`
+- `match_participants`
+- `shop_items`
+- `purchases`
+
+2. Основные таблицы
+
+Таблица `players`
+
+Назначение:
+- одна запись на одного игрока
+
+Поля:
+- `id UNIQUEIDENTIFIER PRIMARY KEY`
+- `nickname NVARCHAR(64) NOT NULL`
+- `rank_name NVARCHAR(32) NOT NULL`
+- `avatar NVARCHAR(64) NOT NULL`
+- `level INT NOT NULL`
+- `experience INT NOT NULL`
+- `coins INT NOT NULL`
+- `created_at DATETIME2 NOT NULL`
+- `updated_at DATETIME2 NOT NULL`
+
+Рекомендации:
+- `nickname` сделать уникальным
+- `coins >= 0`
+- `level >= 1`
+- `experience >= 0`
+
+Таблица `player_statistics`
+
+Назначение:
+- агрегированная статистика по игроку
+
+Поля:
+- `player_id UNIQUEIDENTIFIER PRIMARY KEY`
+- `total_matches INT NOT NULL`
+- `wins INT NOT NULL`
+- `losses INT NOT NULL`
+- `online_matches INT NOT NULL`
+- `offline_matches INT NOT NULL`
+- `cards_played INT NOT NULL`
+- `turns_played INT NOT NULL`
+
+Связь:
+- `player_id -> players(id)`
+
+Таблица `cards`
+
+Назначение:
+- справочник всех карт игры
+
+Поля:
+- `id INT PRIMARY KEY`
+- `code NVARCHAR(128) NULL`
+- `name NVARCHAR(128) NOT NULL`
+- `rarity NVARCHAR(32) NOT NULL`
+- `card_type NVARCHAR(32) NOT NULL`
+- `cost INT NOT NULL`
+- `is_active BIT NOT NULL`
+
+Таблица `player_owned_cards`
+
+Назначение:
+- какие карты открыты у игрока
+
+Поля:
+- `player_id UNIQUEIDENTIFIER NOT NULL`
+- `card_id INT NOT NULL`
+- `obtained_at DATETIME2 NOT NULL`
+- `source NVARCHAR(32) NULL`
+
+Ключ:
+- `PRIMARY KEY(player_id, card_id)`
+
+Связи:
+- `player_id -> players(id)`
+- `card_id -> cards(id)`
+
+Таблица `player_selected_deck`
+
+Назначение:
+- текущая колода игрока в нужном порядке
+
+Поля:
+- `player_id UNIQUEIDENTIFIER NOT NULL`
+- `slot_index INT NOT NULL`
+- `card_id INT NOT NULL`
+
+Ключ:
+- `PRIMARY KEY(player_id, slot_index)`
+
+Дополнительно:
+- `UNIQUE(player_id, card_id)`
+
+Связи:
+- `player_id -> players(id)`
+- `card_id -> cards(id)`
+
+Таблица `auth_users`
+
+Назначение:
+- логин и данные авторизации для входа в игру
+
+Поля:
+- `player_id UNIQUEIDENTIFIER PRIMARY KEY`
+- `login NVARCHAR(64) NOT NULL`
+- `password_hash VARBINARY(64) NOT NULL`
+- `password_salt VARBINARY(32) NOT NULL`
+- `created_at DATETIME2 NOT NULL`
+
+Связи:
+- `player_id -> players(id)`
+
+Важно:
+- пароль нельзя хранить в открытом виде
+- в базе должен лежать только `password_hash` и `password_salt`
+- `login` нужно сделать уникальным
+
+Таблица `matches`
+
+Назначение:
+- общая запись о матче
+
+Поля:
+- `id UNIQUEIDENTIFIER PRIMARY KEY`
+- `match_type NVARCHAR(16) NOT NULL`
+- `lobby_code NVARCHAR(16) NULL`
+- `started_at DATETIME2 NOT NULL`
+- `finished_at DATETIME2 NULL`
+- `winner_player_id UNIQUEIDENTIFIER NULL`
+- `result_text NVARCHAR(255) NULL`
+
+Связь:
+- `winner_player_id -> players(id)`
+
+Таблица `match_participants`
+
+Назначение:
+- итог по каждому игроку внутри матча
+
+Поля:
+- `match_id UNIQUEIDENTIFIER NOT NULL`
+- `player_id UNIQUEIDENTIFIER NOT NULL`
+- `seat_index INT NOT NULL`
+- `is_winner BIT NOT NULL`
+- `final_influence INT NOT NULL`
+- `cards_played INT NOT NULL`
+- `turns_played INT NOT NULL`
+
+Ключ:
+- `PRIMARY KEY(match_id, player_id)`
+
+Связи:
+- `match_id -> matches(id)`
+- `player_id -> players(id)`
+
+Таблица `shop_items`
+
+Назначение:
+- справочник предметов магазина
+
+Поля:
+- `id UNIQUEIDENTIFIER PRIMARY KEY`
+- `code NVARCHAR(64) NOT NULL`
+- `title NVARCHAR(128) NOT NULL`
+- `price_coins INT NOT NULL`
+- `item_type NVARCHAR(32) NOT NULL`
+- `is_active BIT NOT NULL`
+
+Таблица `purchases`
+
+Назначение:
+- история покупок
+
+Поля:
+- `id UNIQUEIDENTIFIER PRIMARY KEY`
+- `player_id UNIQUEIDENTIFIER NOT NULL`
+- `shop_item_id UNIQUEIDENTIFIER NOT NULL`
+- `price_paid INT NOT NULL`
+- `purchased_at DATETIME2 NOT NULL`
+
+Связи:
+- `player_id -> players(id)`
+- `shop_item_id -> shop_items(id)`
+
+3. Готовый SQL Server DDL
+
+```sql
+CREATE TABLE dbo.players (
+    id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+    nickname NVARCHAR(64) NOT NULL UNIQUE,
+    rank_name NVARCHAR(32) NOT NULL CONSTRAINT DF_players_rank_name DEFAULT N'Bronze',
+    avatar NVARCHAR(64) NOT NULL CONSTRAINT DF_players_avatar DEFAULT N'default',
+    level INT NOT NULL CONSTRAINT DF_players_level DEFAULT 1,
+    experience INT NOT NULL CONSTRAINT DF_players_experience DEFAULT 0,
+    coins INT NOT NULL CONSTRAINT DF_players_coins DEFAULT 500,
+    created_at DATETIME2 NOT NULL CONSTRAINT DF_players_created_at DEFAULT SYSUTCDATETIME(),
+    updated_at DATETIME2 NOT NULL CONSTRAINT DF_players_updated_at DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT CK_players_level CHECK (level >= 1),
+    CONSTRAINT CK_players_experience CHECK (experience >= 0),
+    CONSTRAINT CK_players_coins CHECK (coins >= 0)
+);
+
+CREATE TABLE dbo.player_statistics (
+    player_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    total_matches INT NOT NULL CONSTRAINT DF_player_statistics_total_matches DEFAULT 0,
+    wins INT NOT NULL CONSTRAINT DF_player_statistics_wins DEFAULT 0,
+    losses INT NOT NULL CONSTRAINT DF_player_statistics_losses DEFAULT 0,
+    online_matches INT NOT NULL CONSTRAINT DF_player_statistics_online_matches DEFAULT 0,
+    offline_matches INT NOT NULL CONSTRAINT DF_player_statistics_offline_matches DEFAULT 0,
+    cards_played INT NOT NULL CONSTRAINT DF_player_statistics_cards_played DEFAULT 0,
+    turns_played INT NOT NULL CONSTRAINT DF_player_statistics_turns_played DEFAULT 0,
+    CONSTRAINT FK_player_statistics_players
+        FOREIGN KEY (player_id) REFERENCES dbo.players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE dbo.auth_users (
+    player_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    login NVARCHAR(64) NOT NULL UNIQUE,
+    password_hash VARBINARY(64) NOT NULL,
+    password_salt VARBINARY(32) NOT NULL,
+    created_at DATETIME2 NOT NULL CONSTRAINT DF_auth_users_created_at DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_auth_users_players
+        FOREIGN KEY (player_id) REFERENCES dbo.players(id) ON DELETE CASCADE
+);
+
+CREATE TABLE dbo.cards (
+    id INT NOT NULL PRIMARY KEY,
+    code NVARCHAR(128) NULL UNIQUE,
+    name NVARCHAR(128) NOT NULL,
+    rarity NVARCHAR(32) NOT NULL,
+    card_type NVARCHAR(32) NOT NULL,
+    cost INT NOT NULL CONSTRAINT DF_cards_cost DEFAULT 0,
+    is_active BIT NOT NULL CONSTRAINT DF_cards_is_active DEFAULT 1,
+    CONSTRAINT CK_cards_cost CHECK (cost >= 0)
+);
+
+CREATE TABLE dbo.player_owned_cards (
+    player_id UNIQUEIDENTIFIER NOT NULL,
+    card_id INT NOT NULL,
+    obtained_at DATETIME2 NOT NULL CONSTRAINT DF_player_owned_cards_obtained_at DEFAULT SYSUTCDATETIME(),
+    source NVARCHAR(32) NULL,
+    CONSTRAINT PK_player_owned_cards PRIMARY KEY (player_id, card_id),
+    CONSTRAINT FK_player_owned_cards_players
+        FOREIGN KEY (player_id) REFERENCES dbo.players(id) ON DELETE CASCADE,
+    CONSTRAINT FK_player_owned_cards_cards
+        FOREIGN KEY (card_id) REFERENCES dbo.cards(id)
+);
+
+CREATE TABLE dbo.player_selected_deck (
+    player_id UNIQUEIDENTIFIER NOT NULL,
+    slot_index INT NOT NULL,
+    card_id INT NOT NULL,
+    CONSTRAINT PK_player_selected_deck PRIMARY KEY (player_id, slot_index),
+    CONSTRAINT UQ_player_selected_deck_player_card UNIQUE (player_id, card_id),
+    CONSTRAINT FK_player_selected_deck_players
+        FOREIGN KEY (player_id) REFERENCES dbo.players(id) ON DELETE CASCADE,
+    CONSTRAINT FK_player_selected_deck_cards
+        FOREIGN KEY (card_id) REFERENCES dbo.cards(id),
+    CONSTRAINT CK_player_selected_deck_slot_index CHECK (slot_index >= 0)
+);
+```
+
+4. Если нужна история матчей
+
+```sql
+CREATE TABLE dbo.matches (
+    id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+    match_type NVARCHAR(16) NOT NULL,
+    lobby_code NVARCHAR(16) NULL,
+    started_at DATETIME2 NOT NULL CONSTRAINT DF_matches_started_at DEFAULT SYSUTCDATETIME(),
+    finished_at DATETIME2 NULL,
+    winner_player_id UNIQUEIDENTIFIER NULL,
+    result_text NVARCHAR(255) NULL,
+    CONSTRAINT FK_matches_winner_player
+        FOREIGN KEY (winner_player_id) REFERENCES dbo.players(id)
+);
+
+CREATE TABLE dbo.match_participants (
+    match_id UNIQUEIDENTIFIER NOT NULL,
+    player_id UNIQUEIDENTIFIER NOT NULL,
+    seat_index INT NOT NULL,
+    is_winner BIT NOT NULL CONSTRAINT DF_match_participants_is_winner DEFAULT 0,
+    final_influence INT NOT NULL CONSTRAINT DF_match_participants_final_influence DEFAULT 0,
+    cards_played INT NOT NULL CONSTRAINT DF_match_participants_cards_played DEFAULT 0,
+    turns_played INT NOT NULL CONSTRAINT DF_match_participants_turns_played DEFAULT 0,
+    CONSTRAINT PK_match_participants PRIMARY KEY (match_id, player_id),
+    CONSTRAINT UQ_match_participants_match_seat UNIQUE (match_id, seat_index),
+    CONSTRAINT FK_match_participants_matches
+        FOREIGN KEY (match_id) REFERENCES dbo.matches(id) ON DELETE CASCADE,
+    CONSTRAINT FK_match_participants_players
+        FOREIGN KEY (player_id) REFERENCES dbo.players(id) ON DELETE CASCADE
+);
+```
+
+5. Рекомендуемые индексы
+
+```sql
+CREATE INDEX IX_player_owned_cards_player_id ON dbo.player_owned_cards(player_id);
+CREATE INDEX IX_player_selected_deck_player_id ON dbo.player_selected_deck(player_id);
+CREATE INDEX IX_match_participants_player_id ON dbo.match_participants(player_id);
+CREATE INDEX IX_purchases_player_id ON dbo.purchases(player_id);
+```
+
+6. Как подключать игру к SQL Server
+
+Правильная схема:
+- Unity клиент
+- твой backend API
+- SQL Server
+
+Напрямую из Unity к SQL Server лучше не подключаться.
+
+Почему:
+- строка подключения окажется внутри клиента
+- базу проще атаковать
+- сложнее контролировать валидацию и защиту от читов
+
+Рекомендованный вариант:
+- backend на `ASP.NET Core Web API`
+- драйвер `Microsoft.Data.SqlClient`
+- Unity общается с backend через HTTP
+
+7. Пример строки подключения
+
+Для Windows-аутентификации:
+
+```json
+{
+  "ConnectionStrings": {
+    "ParlamB": "Server=localhost;Database=ParlamB;Trusted_Connection=True;TrustServerCertificate=True;"
+  }
+}
+```
+
+Для логина и пароля SQL Server:
+
+```json
+{
+  "ConnectionStrings": {
+    "ParlamB": "Server=localhost;Database=ParlamB;User Id=sa;Password=YourStrongPassword123;TrustServerCertificate=True;"
+  }
+}
+```
+
+8. Минимальный backend-пример на C#
+
+```csharp
+using Microsoft.Data.SqlClient;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+string connectionString = builder.Configuration.GetConnectionString("ParlamB")!;
+
+app.MapGet("/api/player/{nickname}", async (string nickname) =>
+{
+    await using SqlConnection connection = new SqlConnection(connectionString);
+    await connection.OpenAsync();
+
+    const string sql = @"
+        SELECT TOP (1) id, nickname, level, experience, coins, rank_name, avatar
+        FROM dbo.players
+        WHERE nickname = @nickname;";
+
+    await using SqlCommand command = new SqlCommand(sql, connection);
+    command.Parameters.AddWithValue("@nickname", nickname);
+
+    await using SqlDataReader reader = await command.ExecuteReaderAsync();
+    if (!await reader.ReadAsync())
+        return Results.NotFound();
+
+    return Results.Ok(new
+    {
+        Id = reader.GetGuid(0),
+        Nickname = reader.GetString(1),
+        Level = reader.GetInt32(2),
+        Experience = reader.GetInt32(3),
+        Coins = reader.GetInt32(4),
+        Rank = reader.GetString(5),
+        Avatar = reader.GetString(6)
+    });
+});
+
+app.Run();
+```
+
+9. Как это связать с текущим проектом
+
+В текущем коде поля уже почти готовы под такую схему:
+- `PlayerProfileData.nickname` -> `players.nickname`
+- `PlayerProfileData.level` -> `players.level`
+- `PlayerProfileData.experience` -> `players.experience`
+- `PlayerProfileData.coins` -> `players.coins`
+- `PlayerProfileData.rank` -> `players.rank_name`
+- `PlayerProfileData.avatar` -> `players.avatar`
+- `PlayerProfileData.ownedCards` -> `player_owned_cards`
+- `PlayerProfileData.selectedDeck` -> `player_selected_deck`
+- `PlayerStatisticsData.*` -> `player_statistics`
+
+10. Самый безопасный порядок внедрения
+
+1. Создаёшь таблицы в SQL Server.
+2. Оставляешь текущий локальный JSON как временный fallback.
+3. Поднимаешь backend API.
+4. Переводишь на API сначала:
+- загрузку профиля
+- сохранение монет
+- сохранение колоды
+- статистику матчей
+5. Потом уже переносишь магазин и историю матчей.
+
+11. Что делать дальше
+
+Если хочешь, следующим шагом лучше сделать:
+- SQL-скрипт с полным созданием всех таблиц
+- backend-проект на ASP.NET Core
+- API методы под текущий `PlayerProfileDatabase`
+- замену локального JSON на HTTP-запросы
