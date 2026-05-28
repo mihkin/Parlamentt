@@ -123,3 +123,4 @@ E:\git\ParlamB\Temp\BackendBuild2\ParlamB.Api.deps.json
 E:\git\ParlamB\Temp\BackendBuild2\ParlamB.Api.runtimeconfig.json
 E:\git\ParlamB\Temp\BackendBuild2\ParlamB.Api.dll
 E:\git\ParlamB\Temp\BackendBuild2\ParlamB.Api.pdb
+E:\git\ParlamB\Backend\ParlamB.Api\obj\Debug\net10.0\ParlamB.Api.sourcelink.json
